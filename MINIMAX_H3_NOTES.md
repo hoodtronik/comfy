@@ -156,6 +156,31 @@ kernels (the ones cu130 unlocks); `fp8_scaled` takes a slower route.
 fp8 also draws *less* power (293.7 W vs 296.8 W) while being slower — it is not saturating
 the card, so unlike int8 it is not even power-limited. Stay on int8_convrot.
 
+## 4c. INT4 is 27% faster and visibly worse — rejected
+
+`MiniMax_H3_FL2VA_pruned_int4_convrot` (third-party, `Abiray/...`) loads fine and is the
+fastest option measured: **3.01 s/it vs int8's 4.15** (77 s vs 100 s), i.e. 48% faster than
+the stock-attention baseline we started from.
+
+**It is still the wrong choice.** Same-seed comparison at 864x480/124f
+(`docs/img/int8_vs_int4.png`):
+
+| | int8_convrot | int4_convrot |
+|---|---|---|
+| s/it | 3.97 | 2.88 |
+| output size | 900 KB | **2.9 MB** |
+
+The 3x file size is the tell — that is grain, and noise does not compress. Visually the
+INT4 render loses the background bokeh entirely, gains heavy grain across the whole frame,
+takes on a muddy magenta cast, and smears the reflections that int8 renders cleanly.
+
+It is **not usable as a fast preview either**, which would have been its fallback role: the
+composition, lighting and depth differ enough from the int8 render that it does not predict
+the final. A preview that does not predict the finish is worse than none.
+
+Speed alone is not a result. Always frame-compare a quantization change at a fixed seed
+before adopting it.
+
 ## 5. Measured render times
 
 Stock attention, warm server, uninterrupted sweep. All four verified as h264 + AAC
