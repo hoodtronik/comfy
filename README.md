@@ -256,12 +256,22 @@ RTX 6000 Ada (48 GB), torch 2.9.1+cu130, int8 encoder + pruned int8_convrot DiT,
 
 ### SageAttention is a real ~29% win here — but only on the cu130 wheel
 
-`start-headless.js` passes `--use-sage-attention`. Measured at 864x480/124f:
+`start-headless.js` passes `--use-sage-attention`. Interleaved stock/sage, two rounds, on
+an idle machine, 864x480/124f, warmup discarded, fresh seed per run:
 
-| | s/it | total |
+| trial | s/it | total |
 |---|---|---|
-| stock attention | 5.75 | 154 s |
-| `--use-sage-attention` | **4.07** | **119 s** |
+| stock r1 | 5.75 | 134 s |
+| **sage r1** | **4.15** | **101 s** |
+| stock r2 | 5.76 | 132 s |
+| **sage r2** | **4.15** | **100 s** |
+
+**-27.9% s/it, -24.4% wall clock.** Rounds agree to 0.2% / 0.0%, at matched power
+(~298 W) and temperature (86-88 C).
+
+Sage holds *higher clocks at the same power* (1215/1050 vs 900/945 MHz) — its int8
+attention does more work per watt, which on a 300 W-capped card converts straight into
+clock headroom.
 
 Verified genuine, not a silent fallback: the log shows `Using sage attention` with no
 `SM89 kernel is not available`, and output quality is unchanged.

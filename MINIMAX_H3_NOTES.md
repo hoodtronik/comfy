@@ -102,14 +102,28 @@ attention instead` and **silently falls back**. The flag reads as enabled while 
 nothing.
 
 The cu130 upgrade pulled `sageattention 2.2.0+cu130torch2.9.1.post6`, which **does** have
-an SM89 kernel. Measured at 864x480 / 124 f:
+an SM89 kernel.
 
-| | s/it | total |
-|---|---|---|
-| stock attention | 5.75 | 154 s |
-| `--use-sage-attention` | **4.07** | **119 s** |
+**Definitive measurement** — interleaved stock→sage→stock→sage on an idle machine,
+864x480 / 124 f / 20 steps, warmup pass discarded, fresh seed per run:
 
-At 243 f: 17.2 s/it → **11.2–12.8 s/it**.
+| trial | s/it | total | GPU during sampling |
+|---|---|---|---|
+| stock r1 | 5.75 | 134 s | 945 MHz, 87 C, 298.8 W, 100% |
+| **sage r1** | **4.15** | **101 s** | 1215 MHz, 87 C, 297.9 W, 100% |
+| stock r2 | 5.76 | 132 s | 900 MHz, 88 C, 299.5 W, 100% |
+| **sage r2** | **4.15** | **100 s** | 1050 MHz, 86 C, 296.7 W, 100% |
+
+**-27.9% s/it, -24.4% wall clock.** Repeat rounds agree to 0.2% (stock) and 0.0% (sage) at
+matched power and temperature.
+
+Sage sustains **higher clocks at identical power draw** (1215/1050 vs 945/900 MHz at
+~298 W) — int8 attention does more work per watt, and on a 300 W-capped card that becomes
+clock headroom directly. A card with more power budget should benefit at least as much.
+
+⚠️ Earlier passes produced 26%, 35% and 59% for this same comparison. All were invalid:
+the machine was in desktop use and the configs ran in separate sessions at different
+thermal states. Only the interleaved idle-machine figures above should be quoted.
 
 Verified genuine, not a fallback: `Using sage attention` present, no `SM89` line anywhere
 in the log, and a frame-level comparison against the stock render shows no degradation.
