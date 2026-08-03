@@ -194,12 +194,74 @@ Note the text encoder runs once per prompt while the diffusion model runs every 
 so the encoder choice barely moves throughput. Sampling cost (~3.1 s/it here) is driven
 by the diffusion model and the available quantization kernels.
 
+### Prompts are structured, not prose
+
+H3 was trained on the structured output of its own rewriter. Free-prose direction
+underuses it badly. A text-to-video prompt is three labelled fields separated by blank
+lines:
+
+```text
+integrated_multimodal_description: [Shot 1] Live-action, cinematic. <visuals, action,
+camera along the timeline>. [Shot 2] At 00:02.500, the shot cuts to <...>
+
+overall_soundscape: <1-4 sentences of ambience / physical / non-verbal sound only.
+No dialogue. N/A only for deliberate silence.>
+
+non_diegetic_music: <1-3 sentences of audience-only score: instrumentation, tempo,
+dynamics. No mood words. N/A if none.>
+```
+
+- `[Shot 1]` carries no timestamp; later shots take strictly increasing ones
+  (`[Shot 2] At 00:02.500, the camera cuts to ...`).
+- Camera is written as natural English inside the shot — motion type, then amplitude,
+  then speed: *"the camera pushes in with small amplitude at slow speed"*. Never stack
+  labels at the end.
+- Dialogue uses `<d>` tags with stable speaker IDs. Identity, action and delivery go
+  **outside** the tag; only the language tag and verbatim words go inside:
+  `The woman (S1) says: <d>[English] I get off at the next station.</d>`
+
+**There is no negative prompt.** `BasicGuider` takes a single conditioning and there is
+no CFG, so anything you don't want has to be handled by not asking for it.
+
 ### Frame count must land on the 17k+5 grid
 
-`length` is snapped to the model's block grid: valid values are `17k + 5`
-(5, 22, 39, 56, ... 124, ...) at 24fps. 124 frames is ~5s and is the trained range's
-lower end (~124-362). The official template computes it as
-`max(5, round(sec*24)) + (5 - (max(5, round(sec*24)) % 17)) % 17`.
+`length` must satisfy `n % 17 == 5`; the node snaps upward silently, so an off-grid
+value quietly becomes something else. At 24fps:
+
+| seconds | frames | actual |
+|---|---|---|
+| 5 | 124 | 5.17 s |
+| 8 | 192 | 8.00 s |
+| 10 | 243 | 10.13 s |
+| 15 | 362 | 15.08 s (max trained) |
+
+Cost is **quadratic in sequence length**, so 15s costs roughly twice the wall clock of
+10s for 1.5x the footage. Trained range is ~124-362; beyond that is untested.
+
+### Resolution
+
+Canvas rule in code: 768 short edge, area capped at 768x1344, each axis rounded to 32.
+
+| MP | 16:9 |
+|---|---|
+| 0.4 | 864x480 |
+| 0.7 | 1152x640 |
+| 0.98 | 1344x768 (template default) |
+| 2.0 | 1920x1088 |
+
+### The two checkpoints are mutually exclusive
+
+| Task | Checkpoint | Node |
+|---|---|---|
+| T2V / I2V / FL2V | `minimax_h3_fl2va_*` | `MiniMaxH3ImageToVideo` |
+| Reference-to-video | `minimax_h3_ref2va_*` | `MiniMaxH3ReferenceToVideo` |
+
+This launcher ships the `fl2va` model. Add `ref2va` separately if you need the
+reference lane.
+
+"Pruned" is **lossless** — the modulation weights (~40% of params) are replaced with an
+equivalent lookup table. The 31.7 GB unpruned variant gives no quality gain over the
+19.5 GB pruned one.
 
 ### Required models
 

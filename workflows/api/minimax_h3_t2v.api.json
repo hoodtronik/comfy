@@ -151,7 +151,7 @@
         "11",
         0
       ],
-      "prompt": "A slow dolly through a rain-soaked neon alley at dusk, steam rising from a grate, reflections rippling in puddles. Ambient rain, distant traffic, low synth hum.",
+      "prompt": "integrated_multimodal_description: [Shot 1] Live-action, cinematic. A rain-soaked neon alley at dusk, wet asphalt mirroring pink and cyan signage, steam curling from a grate in the foreground. The camera pushes in with small amplitude at slow speed toward a widening puddle as raindrops break the reflections apart. [Shot 2] At 00:02.500, the shot cuts to a low angle looking up the alley, a bare bulb swinging above a doorway, rain streaking through its light.\n\noverall_soundscape: Steady rain drumming on asphalt and metal awnings, water spilling from a downspout, the hiss of distant traffic on a wet road, a low electrical hum from a transformer.\n\nnon_diegetic_music: A sparse synth pad at roughly 60 BPM, low sustained bass swells, no percussion.",
       "width": 1344,
       "height": 768,
       "length": 124
