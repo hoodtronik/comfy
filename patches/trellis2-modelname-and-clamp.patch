@@ -1,0 +1,43 @@
+diff --git a/nodes.py b/nodes.py
+index a5ac339..9f951cd 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -320,7 +320,7 @@ class Trellis2LoadModel:
+     def INPUT_TYPES(s):
+         return {
+             "required": {
+-                "modelname": (["microsoft/TRELLIS.2-4B","visualbruno/TRELLIS.2-4B-FP8"],{"default":"microsoft/TRELLIS.2-4B"}),
++                "modelname": (["microsoft/TRELLIS.2-4B","visualbruno/TRELLIS.2-4B-FP8","TRELLIS.2-4B"],{"default":"microsoft/TRELLIS.2-4B"}),
+                 "backend": (["flash_attn","xformers","sdpa","flash_attn_3"],{"default":"flash_attn"}),
+                 "device": (["cpu","cuda"],{"default":"cuda"}),
+                 "low_vram": ("BOOLEAN",{"default":True}),
+@@ -335,6 +335,9 @@ class Trellis2LoadModel:
+     OUTPUT_NODE = True
+ 
+     def process(self, modelname, backend, device, low_vram, keep_models_loaded):
++        # Normalize short model name to full HuggingFace path
++        if modelname == "TRELLIS.2-4B":
++            modelname = "microsoft/TRELLIS.2-4B"
+         os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
+         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # Can save GPU memory
+         #os.environ["FLEX_GEMM_AUTOTUNE_CACHE_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'autotune_cache.json')
+@@ -789,7 +792,7 @@ class Trellis2PostProcessMesh:
+                 "repair_non_manifold_edges": ("BOOLEAN", {"default":False}),
+                 "remove_non_manifold_faces": ("BOOLEAN", {"default":False}),
+                 "remove_small_connected_components": ("BOOLEAN", {"default":False}),
+-                "remove_small_connected_components_size": ("FLOAT", {"default":0.00001,"min":0.00001,"max":9.99999,"step":0.00001}),
++                "remove_small_connected_components_size": ("FLOAT", {"default":0.00001,"min":0.0,"max":9.99999,"step":0.00001}),
+                 "unify_faces_orientation": ("BOOLEAN", {"default":False}),
+                 "remove_floaters": ("BOOLEAN",{"default":False}),
+                 "remove_infinite_vertices": ("BOOLEAN",{"default":False}),
+@@ -852,7 +855,9 @@ class Trellis2PostProcessMesh:
+             
+         if remove_small_connected_components:
+             print('Removing small connected components ...')
+-            cumesh.remove_small_connected_components(remove_small_connected_components_size)        
++            # Clamp to safe minimum to avoid division by zero
++            safe_size = max(remove_small_connected_components_size, 0.00001)
++            cumesh.remove_small_connected_components(safe_size)        
+         
+         if unify_faces_orientation:
+             print('Unifying faces orientation ...')

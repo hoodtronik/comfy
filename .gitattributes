@@ -1,0 +1,3 @@
+# CLAUDE-NOTE: Patch files must keep LF endings. git's autocrlf would rewrite them to
+# CRLF on checkout, and `git apply` then fails to match the target source lines.
+*.patch -text

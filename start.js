@@ -70,7 +70,11 @@ module.exports = {
       "id": "set_url",
       method: "local.set",
       params: {
-        url: "http://localhost:8188"
+        // CLAUDE-NOTE: Uses the URL captured from the shell event rather than a
+        // hardcoded http://localhost:8188. Upstream hardcoded it in 9d07444, but
+        // start-headless.js now runs a second ComfyUI on its own port, so the
+        // "Open Web UI" button must reflect the port this instance actually bound.
+        url: "{{input.url}}"
       }
     }
   ]

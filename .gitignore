@@ -1,2 +1,5 @@
 node_modules
 .DS_Store
+
+# Written at runtime by start-headless.js; the port varies per launch.
+headless.json

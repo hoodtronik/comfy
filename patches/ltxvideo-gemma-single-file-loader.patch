@@ -1,0 +1,63 @@
+diff --git a/gemma_encoder.py b/gemma_encoder.py
+index 43031c6..cc419d3 100644
+--- a/gemma_encoder.py
++++ b/gemma_encoder.py
+@@ -490,15 +490,27 @@ def ltxv_gemma_tokenizer(tokenizer_path, max_length=256):
+     return _LTXVGemmaTokenizer
+ 
+ 
+-def ltxv_gemma_clip(encoder_path, ltxv_path, processor=None, dtype=None):
++def ltxv_gemma_clip(encoder_path, ltxv_path, processor=None, dtype=None, config_dir=None):
+     class _LTXVGemmaTextEncoderModel(LTXVGemmaTextEncoderModel):
+         def __init__(self, device="cpu", dtype=dtype, model_options={}):
+             dtype = torch.bfloat16  # TODO: make this configurable
+-            gemma_model = Gemma3ForConditionalGeneration.from_pretrained(
+-                encoder_path,
+-                local_files_only=True,
+-                torch_dtype=dtype,
+-            )
++            if Path(encoder_path).is_file():
++                 from transformers import AutoConfig
++                 if config_dir is not None:
++                     config_path = config_dir
++                 else:
++                     config_path = Path(encoder_path).parent
++
++                 config = AutoConfig.from_pretrained(config_path, local_files_only=True)
++                 gemma_model = Gemma3ForConditionalGeneration(config)
++                 sd = load_torch_file(str(encoder_path))
++                 gemma_model.load_state_dict(sd, strict=False)
++            else:
++                gemma_model = Gemma3ForConditionalGeneration.from_pretrained(
++                    encoder_path,
++                    local_files_only=True,
++                    torch_dtype=dtype,
++                )
+ 
+             feature_extractor_linear = load_proj_matrix_from_ltxv(
+                 ltxv_path,
+@@ -567,9 +579,13 @@ class LTXVGemmaCLIPModelLoader:
+ 
+     def load_model(self, gemma_path: str, ltxv_path: str, max_length: int):
+         path = Path(folder_paths.get_full_path("text_encoders", gemma_path))
+-        model_root = path.parents[1]
++        model_root = path.parent
+         tokenizer_path = Path(find_matching_dir(model_root, "tokenizer.model"))
+-        gemma_model_path = Path(find_matching_dir(model_root, "model*.safetensors"))
++        try:
++             gemma_model_path = Path(find_matching_dir(model_root, "model*.safetensors"))
++        except FileNotFoundError:
++             gemma_model_path = path
++
+         processor_path = Path(find_matching_dir(model_root, "preprocessor_config.json"))
+         tokenizer_class = ltxv_gemma_tokenizer(tokenizer_path, max_length=max_length)
+ 
+@@ -592,7 +608,7 @@ class LTXVGemmaCLIPModelLoader:
+         clip_target = comfy.supported_models_base.ClipTarget(
+             tokenizer=tokenizer_class,
+             clip=ltxv_gemma_clip(
+-                gemma_model_path, ltxv_full_path, processor=processor, dtype=clip_dtype
++                gemma_model_path, ltxv_full_path, processor=processor, dtype=clip_dtype, config_dir=tokenizer_path
+             ),
+         )
+ 

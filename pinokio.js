@@ -9,6 +9,7 @@ module.exports = {
     let running = {
       install: info.running("install.js"),
       start: info.running("start.js"),
+      start_headless: info.running("start-headless.js"),
       update: info.running("update.js"),
       reset: info.running("reset.js")
     }
@@ -84,6 +85,25 @@ module.exports = {
             href: "start.js",
           }]
         }
+      } else if (running.start_headless) {
+        // CLAUDE-NOTE: The headless instance is API-driven, so its terminal is the
+        // useful default rather than a web UI. The URL is still offered when known,
+        // since the same server serves the normal ComfyUI frontend on its own port.
+        let local = info.local("start-headless.js")
+        let items = [{
+          default: true,
+          icon: 'fa-solid fa-terminal',
+          text: "Headless Terminal",
+          href: "start-headless.js",
+        }]
+        if (local && local.url) {
+          items.push({
+            icon: "fa-solid fa-robot",
+            text: "Open Headless UI",
+            href: local.url,
+          })
+        }
+        return items
       } else if (is_downloading) {
         return [{
           default: true,
@@ -111,6 +131,10 @@ module.exports = {
           icon: "fa-solid fa-power-off",
           text: "Start",
           href: "start.js",
+        }, {
+          icon: "fa-solid fa-robot",
+          text: "Start Headless",
+          href: "start-headless.js",
         }, {
           icon: "fa-solid fa-compact-disc",
           text: "Download Mix",
