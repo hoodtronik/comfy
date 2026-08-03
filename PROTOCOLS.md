@@ -37,8 +37,18 @@ desktop load", never presenting them as clean.
 - `start-headless.js` runs on its own `{{port}}` with `--disable-auto-launch`,
   `--use-sage-attention`, `PYTHONIOENCODING=utf-8`; writes endpoint to `headless.json`.
 - `comfy-api.js` drives it: `node comfy-api.js run <wf.api.json> --url <endpoint>`.
-- Models present: int8 + nvfp4 encoders, `fl2va_pruned_int8_convrot` DiT,
-  **`fl2va_pruned_fp8_scaled` DiT (downloaded, never benchmarked)**, both VAEs.
+- Models present (all in `app/models/`):
+  - encoders: `qwen3vl_32b_minimax_h3_int8_convrot` (in use), `..._nvfp4_awq` (wrong for
+    this GPU, kept for reference), `..._int4_convrot` (third-party, untested)
+  - DiT: `fl2va_pruned_int8_convrot` (in use), `fl2va_pruned_fp8_scaled` (untested),
+    `MiniMax_H3_FL2VA_pruned_int4_convrot` (third-party, untested),
+    `ref2va_pruned_int8_convrot` (untested — unlocks `MiniMaxH3ReferenceToVideo`)
+  - both VAEs (these live on C: via a junction, unlike the rest)
+
+  ⚠️ The INT4 files come from `Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot`, a third-party
+  re-quant, not Comfy-Org. Verify they load before trusting any output. The mechanism is
+  sound — `convrot_w4a4` is in this card's **native** op list — but nothing is verified.
+  Note Abiray stores DiT files at the repo root, not under `diffusion_models/`.
 - flash_attn **uninstalled** (broken post-cu130, was poisoning core `comfy_extras` imports).
   Trellis2 lost with it (cumesh built for torch 2.8) — user confirmed it is no longer used.
 
@@ -125,6 +135,26 @@ Core node, triton 3.5.1 present. Expect a long first-run compile; measure the se
 
 Never measured — the ~6.5 min / ~20 min figures in the docs are **projections** and are
 labelled as such. Replace with real numbers.
+
+### 3.7 INT4 variants (third-party — verify before trusting)
+
+`qwen3vl_32b_minimax_h3_int4_convrot` (13.9 GB) and
+`MiniMax_H3_FL2VA_pruned_int4_convrot` (10.6 GB), from
+`Abiray/Minimax-H3-nvfp4-INT4-INT8-Convrot`. **First check they load at all**, then
+frame-compare against int8 before judging on speed — a quantization this aggressive can
+cost quality, and these are not official Comfy-Org builds.
+
+### 3.8 ref2va lane (`MiniMaxH3ReferenceToVideo`)
+
+Checkpoint now present. Needs a separate API workflow — the node takes reference images /
+videos / audio instead of `first_frame`/`last_frame`, and the prompt uses the **six-section
+ref guide format**, not the three-field T2V format (see the user's 4090 guide §6.4).
+
+Per those notes: ref2va reference blocks carry **no `resolved_frame_index`**, so the
+opening is a *soft* anchor, whereas FL2VA's first frame is pixel-pinned at frame 0.
+Different tool, not an upgrade — measure which suits a given shot rather than assuming.
+Also `ref_image_size: max` makes reference tokens ride through every sampling step and can
+be several times slower than `match`.
 
 ### 3.7 Not worth revisiting
 
