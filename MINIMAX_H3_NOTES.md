@@ -211,10 +211,47 @@ Consecutive reuse compounds: each reused step extrapolates from an already-extra
 state, so error grows with **run length**, not total count. Runs that terminate the window
 are worst — nothing downstream corrects them.
 
-**Safe operating envelope (agreed with the 4090 box, holds regardless of which variable
-dominates):** max consecutive run <= 2, no run terminating the window, `end_percent` < 1.0
-so the final steps always compute. Verify with a fixed-seed frame comparison; output file
-size at fixed res/duration/codec is the cheap first pass.
+**Safe operating envelope:** max consecutive run <= 2, `end_percent` < 1.0. Verify with a
+fixed-seed frame comparison — and see the file-size caveat in §4f, which is important.
+
+### Run-length isolation (the 4090 box could not force runs > 2; this box can)
+
+Raising the threshold lengthens runs here. thr 0.6 and 0.8 produce **identical** sequences
+(the dynamics saturate): 11 skips, runs [2,3,4,2], max 4, with `end_percent` 0.95 so the
+final step always computes — i.e. **long runs with no tail**. Same seed (909090) throughout:
+
+| variant | skips | runs | max | end | frame quality |
+|---|---|---|---|---|---|
+| no cache | 0 | — | — | — | sharp: rain ripples, defined reflections |
+| thr 0.2 | 9 | 1,1,1,2,2,2 | 2 | 0.95 | mild softening |
+| thr 0.4 | 10 | 1,2,3,3,1 | 3 | 0.95 | mild softening |
+| **thr 0.6 / 0.8** | 11 | 2,3,4,2 | **4** | 0.95 | **badly smeared** — reflections collapse to blobs |
+| thr 0.3 tail | 4 | 3,1 | 3 | **1.00** | close to no-cache |
+
+**Run length degrades independently of tail placement.** Max-run 4 with nothing at the
+tail is the worst output in the set, while a tail-inclusive run of 3 (only 4 skips) stayed
+close to the control. That is the opposite ordering to the 4090 box, which found
+`end_percent=1.0` to be the dominant knob — but their thresholds capped at max-run 2, so
+they never tested run length. Both observations can hold: tail placement matters *and*
+run length matters, and each box happened to be able to vary only one of them.
+
+Degradation is not linear in run length — it looks like a threshold effect between 3 and 4
+rather than steady decay, and runs of 2 vs 3 were hard to separate.
+
+## 4f. The file-size heuristic is one-sided — it misses blur
+
+§4c used output file size to catch INT4's degradation (2.9 MB vs 900 KB) and it worked.
+**It does not generalize.** For the max-run-4 render above, file size was only **+18.6%**
+over no-cache (1352 KB vs 1140 KB) — well inside what looked acceptable — while the frame
+is visibly the worst in the set.
+
+The reason: file size detects degradation that *adds* high-frequency content. INT4 added
+grain, which inflates bitrate. Cache over-reuse **blurs**, and blur *compresses better*, so
+it pushes file size the other way. The heuristic is a noise detector, not a quality
+detector.
+
+**Use it only to catch noise-type regressions. It cannot clear a blur-type one — that needs
+frames.**
 
 ## 4e. `--fast` is a no-op on H3
 
