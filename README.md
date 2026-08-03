@@ -162,6 +162,59 @@ for (const output of Object.values(entry.outputs)) {
 }
 ```
 
+## MiniMax H3
+
+MiniMax H3 is supported natively by ComfyUI v0.30.0 — no custom nodes required. It
+generates video with **native stereo audio** in a single joint pass (not layered on
+afterward), up to 2K, 24fps, ~15s.
+
+`workflows/api/minimax_h3_t2v.api.json` is a ready-to-run API-format text-to-video
+workflow:
+
+```bash
+node comfy-api.js run workflows/api/minimax_h3_t2v.api.json --out ./results
+```
+
+### Which quantization on this machine
+
+This box is an **RTX 6000 Ada (compute 8.9)**. That matters: NVFP4 is a Blackwell
+format, and Ada has no native FP4, so the NVFP4 weights run through emulated
+dequantization. Measured on an identical prompt/seed at 608x352, 56 frames, 20 steps:
+
+| text encoder | size | time |
+|---|---|---|
+| `qwen3vl_32b_minimax_h3_nvfp4_awq` | 14.6 GB | 78.9 s |
+| `qwen3vl_32b_minimax_h3_int8_convrot` | 25.3 GB | **73.7 s** |
+
+int8 is faster *despite* being 11 GB larger, and output quality was comparable. The
+workflow therefore ships with the **int8_convrot** encoder. On a Blackwell card the
+NVFP4 file would be the better pick — this is a per-GPU choice, not a global one.
+
+Note the text encoder runs once per prompt while the diffusion model runs every step,
+so the encoder choice barely moves throughput. Sampling cost (~3.1 s/it here) is driven
+by the diffusion model and the available quantization kernels.
+
+### Frame count must land on the 17k+5 grid
+
+`length` is snapped to the model's block grid: valid values are `17k + 5`
+(5, 22, 39, 56, ... 124, ...) at 24fps. 124 frames is ~5s and is the trained range's
+lower end (~124-362). The official template computes it as
+`max(5, round(sec*24)) + (5 - (max(5, round(sec*24)) % 17)) % 17`.
+
+### Required models
+
+From [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3):
+
+```
+models/vae/minimax_h3_video_vae_fp16.safetensors          4.9 GB
+models/vae/minimax_h3_audio_vae_fp32.safetensors          0.6 GB
+models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors   25.3 GB
+models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors  19.5 GB
+```
+
+`fl2va` covers text-to-video and first/last-frame-to-video. For reference-to-video
+(`MiniMaxH3ReferenceToVideo`), fetch the matching `ref2va` diffusion model instead.
+
 ## Local patches
 
 `patches/` holds source fixes that upstream has not adopted, kept so they survive an
