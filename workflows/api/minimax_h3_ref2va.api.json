@@ -1,0 +1,200 @@
+{
+  "6": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "9": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": [
+        "6",
+        0
+      ],
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1
+    }
+  },
+  "10": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "14",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ]
+    }
+  },
+  "11": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "13": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "14": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "15",
+        0
+      ],
+      "guider": [
+        "16",
+        0
+      ],
+      "sampler": [
+        "17",
+        0
+      ],
+      "sigmas": [
+        "9",
+        0
+      ],
+      "latent_image": [
+        "104",
+        1
+      ]
+    }
+  },
+  "15": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 0
+    }
+  },
+  "16": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "6",
+        0
+      ],
+      "conditioning": [
+        "104",
+        0
+      ]
+    }
+  },
+  "17": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "res_multistep"
+    }
+  },
+  "20": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "cyborg-front.png",
+      "upload": "image"
+    }
+  },
+  "21": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "cyborg-right.png",
+      "upload": "image"
+    }
+  },
+  "22": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "cyborg-back.png",
+      "upload": "image"
+    }
+  },
+  "23": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": [
+        "14",
+        0
+      ],
+      "vae": [
+        "24",
+        0
+      ]
+    }
+  },
+  "24": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    }
+  },
+  "91": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "10",
+        0
+      ],
+      "audio": [
+        "23",
+        0
+      ],
+      "fps": 24
+    }
+  },
+  "92": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": [
+        "91",
+        0
+      ],
+      "filename_prefix": "video/MiniMax_H3_ref2va",
+      "format": "auto",
+      "codec": "auto"
+    }
+  },
+  "104": {
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "inputs": {
+      "clip": [
+        "13",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ],
+      "audio_vae": [
+        "24",
+        0
+      ],
+      "width": 864,
+      "height": 480,
+      "length": 124,
+      "ref_image_size": "match",
+      "ref_images": {
+        "ref_image_0": [
+          "20",
+          0
+        ],
+        "ref_image_1": [
+          "21",
+          0
+        ],
+        "ref_image_2": [
+          "22",
+          0
+        ]
+      },
+      "prompt": "subject_definitions:\n<Subject 1> is the cyborg shown in <Picture 1>, <Picture 2> and <Picture 3> (front, right-side and rear turnaround views): humanoid build, matte charcoal armour plating over exposed articulated joints, a segmented spinal column, and a narrow visor band that glows pale cyan across the eyes.\n\nsummary:\n[reference generation] A single continuous shot of <Subject 1> powering up and turning to face the camera in a darkened workshop.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - plating silhouette, joint articulation, spinal segmentation and visor colour carry through unchanged.\n\ndetailed_description:\nLive-action, cinematic, anamorphic, shallow depth of field, near-black workshop interior lit by a single overhead practical and the cyborg's own visor glow.\n[Shot 1] <Subject 1> stands motionless on a maintenance rig, seen from behind at three-quarters. The visor flickers, then holds steady pale cyan, throwing light across the plating of its shoulders. Servos in the neck and shoulders engage with a low mechanical whine and it rotates to face the camera, head settling last. The camera pushes in with small amplitude at slow speed, ending on a chest-up framing as dust drifts through the overhead light.\n\noverall_soundscape:\nA low electrical hum rising as power engages, servo whine through the neck and shoulder joints, metal plating settling against itself, the faint tick of a cooling fan in a large empty room with a long concrete reverb.\n\nnon_diegetic_music:\nA single sustained synth drone at low register, swelling slowly, with a soft metallic shimmer entering as the visor lights. No percussion."
+    }
+  }
+}
