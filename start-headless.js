@@ -41,8 +41,18 @@ module.exports = {
           PYTHONIOENCODING: "utf-8"
         },
         path: "app",
+        // CLAUDE-NOTE: --use-sage-attention is measured, not assumed: on this RTX 6000 Ada
+        // (sm_89) it took MiniMax H3 from 5.75 s/it to 4.07 s/it (-29%) at 864x480/124f,
+        // with no quality regression and no fallback in the log. It only works because the
+        // cu130 upgrade pulled sageattention 2.2.0+cu130torch2.9.1, which ships an SM89
+        // kernel; older cu128 builds log "SM89 kernel is not available" and silently fall
+        // back to pytorch attention, making the flag a no-op.
+        // Sage applies to every model, not just H3, and perturbs attention numerics
+        // slightly — same seed gives a near-identical but not bit-identical take. It is set
+        // here (agent/throughput path) and deliberately NOT in start.js, so interactive work
+        // keeps stock attention. Drop the flag if a model ever looks wrong under it.
         message: [
-          "{{platform === 'win32' && gpu === 'amd' ? 'python main.py --directml --port ' + local.port + ' --disable-auto-launch' : 'python main.py --port ' + local.port + ' --disable-auto-launch'}}"
+          "{{platform === 'win32' && gpu === 'amd' ? 'python main.py --directml --port ' + local.port + ' --disable-auto-launch' : 'python main.py --port ' + local.port + ' --disable-auto-launch --use-sage-attention'}}"
         ],
         on: [{
           "event": "/To see the GUI go to: +(http:\/\/[a-zA-Z0-9.]+:[0-9]+)/i",

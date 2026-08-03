@@ -254,6 +254,43 @@ RTX 6000 Ada (48 GB), torch 2.9.1+cu130, int8 encoder + pruned int8_convrot DiT,
 2x; 1344x768/10 s is 11.7x a 480p/5 s clip. Sweep looks at 864x480 and finish at
 1344x768 — you get twelve 480p tries in the time one native render takes.
 
+### SageAttention is a real ~29% win here — but only on the cu130 wheel
+
+`start-headless.js` passes `--use-sage-attention`. Measured at 864x480/124f:
+
+| | s/it | total |
+|---|---|---|
+| stock attention | 5.75 | 154 s |
+| `--use-sage-attention` | **4.07** | **119 s** |
+
+Verified genuine, not a silent fallback: the log shows `Using sage attention` with no
+`SM89 kernel is not available`, and output quality is unchanged.
+
+This only works because torch cu130 pulled `sageattention 2.2.0+cu130torch2.9.1.post6`,
+which ships an **SM89** kernel. The older `2.1.1+cu128torch2.7.0` build has no SM89
+kernel: it logs `Using sage attention`, then at the first sampling step reports
+`SM89 kernel is not available ... using pytorch attention instead` and silently falls
+back, making the flag a no-op. If you ever downgrade torch, expect this speedup to
+vanish quietly rather than error.
+
+Sage applies to every model and perturbs attention numerics slightly, so the same seed
+gives a near-identical but not bit-identical take. It is enabled on the headless path
+only; `start.js` keeps stock attention for interactive work.
+
+### VRAM strategy makes no difference on a 48 GB card
+
+Measured against the same 864x480/124f probe:
+
+| flags | s/it |
+|---|---|
+| default | 5.75 |
+| `--highvram` | 5.80 |
+| `--disable-dynamic-vram` | 5.85 |
+
+None of them help. The card peaks around 40 GB of 48 GB with GPU utilization at 100%
+and `sw_power_cap` active, i.e. it is compute/power-bound, not memory-bound. Extra VRAM
+buys **capability** (no RAM-streaming tax, no OOM at native resolution), not throughput.
+
 Caveat: re-rendering an approved 480p seed at 1344x768 does **not** give the same shot
 larger. Resolution changes the latent shape, which reseeds the sampling trajectory, so
 you get a related but different take. Only upscaling preserves an approved take.
