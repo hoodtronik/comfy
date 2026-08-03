@@ -181,6 +181,52 @@ the final. A preview that does not predict the finish is worse than none.
 Speed alone is not a result. Always frame-compare a quantization change at a fixed seed
 before adopting it.
 
+## 4d. EasyCache — real win, with a tuning rule that is not the threshold
+
+Core ComfyUI node, model-agnostic, composes with H3's NestedTensor (video+audio) latent
+without complaint. Measured 864x480/124f, sage on, int8 DiT:
+
+| | skips | s/it | sampling | vs no-cache |
+|---|---|---|---|---|
+| no cache | 0/20 | 4.15 | 83.0 s | — |
+| thr 0.2 | 9/20 | 2.25 | 45.0 s | **-45.8%** |
+| thr 0.4 | 10/20 | 2.04 | 40.8 s | -50.8% |
+
+**Skipped steps are essentially free here.** EasyCache claims 1.82x for 9 skips (=20/11);
+measured 1.844x — ~101% realized. The 4090 box measured ~95% of its own claim. Both are
+full realization; there is no resident-vs-streaming regime effect (an earlier claim that
+there was came from a miscount — see §6b).
+
+### The tuning rule: read the skip *sequence*, ignore the threshold
+
+`reuse_threshold` is only weakly portable (thr 0.2 gives 9 skips here, 7 on the 4090 box).
+What matters is the **run-length distribution**, extracted from the verbose log:
+
+```
+thr 0.2:  S R S R S R S S R S S R S S    runs [1,1,1,2,2,2]  max 2   -> clean
+thr 0.4:  S R S S R S S S R S S S R S    runs [1,2,3,3,1]    max 3   -> under test
+```
+
+Consecutive reuse compounds: each reused step extrapolates from an already-extrapolated
+state, so error grows with **run length**, not total count. Runs that terminate the window
+are worst — nothing downstream corrects them.
+
+**Safe operating envelope (agreed with the 4090 box, holds regardless of which variable
+dominates):** max consecutive run <= 2, no run terminating the window, `end_percent` < 1.0
+so the final steps always compute. Verify with a fixed-seed frame comparison; output file
+size at fixed res/duration/codec is the cheap first pass.
+
+## 4e. `--fast` is a no-op on H3
+
+| | s/it |
+|---|---|
+| baseline | 4.15 |
+| `--fast fp16_accumulation` | 4.13 |
+| `--fast` (all, incl. `fp8_matrix_mult`) | 4.14 |
+
+All inside noise. The `fp8_matrix_mult` null is consistent with the fp8 DiT loss (§4b) —
+the fp8 weight path is simply not where sm_89 wins are.
+
 ## 5. Measured render times
 
 Stock attention, warm server, uninterrupted sweep. All four verified as h264 + AAC
@@ -249,6 +295,37 @@ Recorded because each one produced a wrong number before being caught.
    which briefly looked like a 388 GB runaway download.
 
 ---
+
+## 6b. Two phantom results, and the checks that would have killed them
+
+Both were produced today by careful-looking work. Recording the *checks*, not just the
+corrections, because the failure mode is confident wrong numbers rather than obvious ones.
+
+**Phantom 1 — "cache methods pay more on a streaming card."** A whole mechanism was built
+on it (skipped step also skips a weight-stream pass), it was inverted once when data
+disagreed, and then it evaporated: the 4090 box's skip count came from
+`grep "skipping step"`, which also matches EasyCache's `NOT skipping step` lines. 14
+"skips" were really 14 *decisions*. Real counts gave ~95% realized there vs ~101% here —
+no regime effect at all.
+
+- **The check:** EasyCache prints its own `EasyCache - skipped N/20 steps (X.XXx speedup)`
+  summary. Assert any parse against it and refuse to report on mismatch.
+- **The deeper check:** compute realized fraction as `measured / the tool's own claimed
+  speedup`, **per box**. Never compare raw speedups across machines with different
+  baselines — that cross-box comparison was the actual bug, more than the grep.
+
+**Phantom 2 — the Sage magnitude, reported at 26%, 35% and 59% before it was real.** All
+taken while the machine was in desktop use, with configs run in separate sessions at
+different thermal states. Interleaved on an idle box: 27.9%, rounds agreeing to 0.2%.
+
+- **The check:** interleave A-B-A-B back to back, never batch; require repeated rounds of
+  the same config to agree before reporting.
+
+The `NOT skipping` trap has a second edge: a *deliberate* parser written here matched
+`(not )?` in lowercase, and EasyCache logs uppercase `NOT`, so every not-skip line fell
+through silently and produced all-S sequences with max-run = total. It cross-validated as
+wrong only because the summary-line assert caught it. `bench/skipmap.sh` has the working
+version.
 
 ## 7. Storage layout
 
