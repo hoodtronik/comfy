@@ -241,14 +241,31 @@ Cost is **quadratic in sequence length**, so 15s costs roughly twice the wall cl
 ### Measured render times
 
 RTX 6000 Ada (48 GB), torch 2.9.1+cu130, int8 encoder + pruned int8_convrot DiT,
-20 steps, `res_multistep` / `simple`:
+20 steps, `res_multistep` / `simple`.
 
-| resolution | duration | frames | time | s/it |
+**Current stack (Sage on, idle machine) — trust these:**
+
+| resolution | duration | frames | s/it | time |
 |---|---|---|---|---|
-| 864x480 | 5 s | 124 | 2 m 25 s | 5.5 |
-| 864x480 | 10 s | 243 | 6 m 18 s | 17.2 |
-| 1344x768 | 5 s | 124 | 9 m 02 s | 25.4 |
-| 1344x768 | 10 s | 243 | 28 m 24 s | 81.3 |
+| 864x480 | 5 s | 124 | 4.15 | **1 m 40 s** |
+| 864x480 | 5 s + EasyCache 0.2 | 124 | 2.25 | **1 m 01 s** |
+| 1344x768 | 5 s | 124 | 15.35 | **5 m 38 s** |
+| 1344x768 | 10 s | 243 | 42.97 | **15 m 18 s** |
+
+**Original stock-attention sweep — superseded, and partly contaminated** (taken while the
+desktop was in use, which cost identical runs up to 2x; see MINIMAX_H3_NOTES.md §6b):
+
+| resolution | duration | s/it | time |
+|---|---|---|---|
+| 864x480 | 5 s | 5.75 *(clean)* | 2 m 14 s |
+| 864x480 | 10 s | 17.2 | 6 m 18 s |
+| 1344x768 | 5 s | 25.4 | 9 m 02 s |
+| 1344x768 | 10 s | 81.3 | 28 m 24 s |
+
+Only the 864x480/5 s stock row was re-measured clean and interleaved. The rest are kept
+for shape, not for absolute values — the 1344x768/10 s row in particular reads 28 m against
+the current stack's 15 m 18 s, and that gap mixes SageAttention with desktop contamination
+in unknown proportion.
 
 **Cost is quadratic in both resolution and length.** 480p 5 s -> 10 s costs 2.6x, not
 2x; 1344x768/10 s is 11.7x a 480p/5 s clip. Sweep looks at 864x480 and finish at
