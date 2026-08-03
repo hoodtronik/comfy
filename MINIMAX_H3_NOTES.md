@@ -137,6 +137,25 @@ numerics slightly — same seed gives a near-identical but not bit-identical tak
 
 ---
 
+## 4b. DiT quantization — fp8 is 48% SLOWER than int8 on this card
+
+Interleaved, sage on, idle machine, 864x480 / 124 f / 20 steps:
+
+| DiT | s/it | total | GPU during sampling |
+|---|---|---|---|
+| `fl2va_pruned_int8_convrot` | **4.15** | **100 s** | ~1110 MHz, 296.8 W |
+| `fl2va_pruned_fp8_scaled` | 6.17 | 140 s | ~990 MHz, 293.7 W |
+
+Rounds agree to 1.0% / 0.2%.
+
+**`supports_fp8_compute` is True on sm_89 and `float8_e4m3fn` is in the native ops line,
+yet fp8 is far slower.** The native-ops line is a *correctness* signal, not a performance
+ranking. What matters is that `int8_convrot` lands on comfy-kitchen's optimized convrot
+kernels (the ones cu130 unlocks); `fp8_scaled` takes a slower route.
+
+fp8 also draws *less* power (293.7 W vs 296.8 W) while being slower — it is not saturating
+the card, so unlike int8 it is not even power-limited. Stay on int8_convrot.
+
 ## 5. Measured render times
 
 Stock attention, warm server, uninterrupted sweep. All four verified as h264 + AAC
