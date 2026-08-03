@@ -264,6 +264,34 @@ frames.**
 All inside noise. The `fp8_matrix_mult` null is consistent with the fp8 DiT loss (§4b) —
 the fp8 weight path is simply not where sm_89 wins are.
 
+## 4g. TorchCompile is blocked — CUDA toolkit mismatch caused by the cu130 upgrade
+
+`TorchCompileModel` (inductor) **does not work here**, and the reason is a side effect of
+our own cu130 move.
+
+Two failures, in order:
+
+1. `RuntimeError: Compiler: cl is not found.` — inductor emits C++ and needs MSVC on
+   Windows. VS2019 BuildTools **are** installed (`...\2019\BuildTools\VC\Tools\MSVC\
+   14.29.30133\`) but not on PATH. Running ComfyUI under `vcvars64.bat` fixes this.
+2. With MSVC available it gets further, then fails compiling triton's launcher:
+   `InductorError: CalledProcessError ... cl.exe ... __triton_launcher.c ... exit status 2`.
+   The command line shows why:
+   `/IC:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include`
+
+**Triton builds its launcher against `CUDA_PATH`, which is v12.8, while torch is cu130.**
+Installed toolkits are v11.8 and v12.8; `torch.version.cuda` reports 13.0.
+
+**The trade-off, stated plainly:** before the cu130 upgrade, torch was cu128 and matched the
+installed v12.8 toolkit, so torch.compile plausibly worked. The upgrade bought
+SageAttention (-27.9%, measured) and cost torch.compile (untested magnitude). Given Sage is
+a confirmed ~28% and torch.compile is typically 10-30% and stacks poorly with an already
+custom-kernel-heavy path, this looks like the right trade — but it *is* a trade, not a
+free win.
+
+**To unblock:** install CUDA Toolkit 13.0 and point `CUDA_PATH` at it, then launch under
+`vcvars64.bat`. Both are system-level changes; neither was made here.
+
 ## 5. Measured render times
 
 Stock attention, warm server, uninterrupted sweep. All four verified as h264 + AAC
