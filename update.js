@@ -2,13 +2,23 @@ module.exports = {
   run: [{
     method: "shell.run",
     params: {
-      message: "git pull"
+      // CLAUDE-NOTE: --autostash so a customized launcher still updates. This repo
+      // carries local launcher changes (start-headless.js, comfy-api.js, the
+      // captured-URL fix in start.js); a bare `git pull` aborts outright if any of
+      // them are uncommitted at update time.
+      message: "git pull --autostash"
     }
   }, {
     method: "shell.run",
     params: {
       path: "app",
-      message: "git pull"
+      // CLAUDE-NOTE: The ComfyUI checkout carries local source fixes upstream has not
+      // adopted (see patches/ and the CLAUDE-NOTE markers in app/). A bare `git pull`
+      // refuses to run with those in the working tree, which is what made this button
+      // fail. --autostash stashes them, pulls, and restores them automatically.
+      // If restoring conflicts, git leaves the stash intact and reports it — recover
+      // with `git stash pop` or reapply from patches/ (see README "Local patches").
+      message: "git pull --autostash"
     }
   }, {
     method: "shell.run",
