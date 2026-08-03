@@ -238,6 +238,31 @@ value quietly becomes something else. At 24fps:
 Cost is **quadratic in sequence length**, so 15s costs roughly twice the wall clock of
 10s for 1.5x the footage. Trained range is ~124-362; beyond that is untested.
 
+### Measured render times
+
+RTX 6000 Ada (48 GB), torch 2.9.1+cu130, int8 encoder + pruned int8_convrot DiT,
+20 steps, `res_multistep` / `simple`:
+
+| resolution | duration | frames | time | s/it |
+|---|---|---|---|---|
+| 864x480 | 5 s | 124 | 2 m 25 s | 5.5 |
+| 864x480 | 10 s | 243 | 6 m 18 s | 17.2 |
+| 1344x768 | 5 s | 124 | 9 m 02 s | 25.4 |
+| 1344x768 | 10 s | 243 | 28 m 24 s | 81.3 |
+
+**Cost is quadratic in both resolution and length.** 480p 5 s -> 10 s costs 2.6x, not
+2x; 1344x768/10 s is 11.7x a 480p/5 s clip. Sweep looks at 864x480 and finish at
+1344x768 — you get twelve 480p tries in the time one native render takes.
+
+Caveat: re-rendering an approved 480p seed at 1344x768 does **not** give the same shot
+larger. Resolution changes the latent shape, which reseeds the sampling trajectory, so
+you get a related but different take. Only upscaling preserves an approved take.
+
+This card is power-capped: 300 W hard limit (`power.max_limit` is also 300 W), SM clock
+throttled to ~780 MHz of 3105 MHz with `sw_power_cap: Active` and thermal *not* active.
+A 450 W RTX 4090 runs the same workload roughly 1.35-1.6x faster despite having half the
+VRAM. VRAM is not the bottleneck here — the heaviest config peaks around 40 GB of 48 GB.
+
 ### Resolution
 
 Canvas rule in code: 768 short edge, area capped at 768x1344, each axis rounded to 32.
@@ -273,6 +298,19 @@ models/vae/minimax_h3_audio_vae_fp32.safetensors          0.6 GB
 models/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors   25.3 GB
 models/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors  19.5 GB
 ```
+
+**Where these actually land.** `install.js` junctions most of `models/` onto Pinokio's
+shared drive, so the physical location is not always this folder. On this machine
+`vae/` is a junction to `C:\pinokio\drive\drives\peers\<id>\vae` (as are `checkpoints`,
+`loras`, `unet`, `controlnet` and others), while `diffusion_models/` and
+`text_encoders/` are real directories on the launcher's own drive. Check
+`Get-Item models/<dir>` before a large download if drive free space is tight — the two
+VAEs go to the shared drive, the encoder and DiT do not.
+
+Do **not** set `HF_HUB_ENABLE_HF_TRANSFER=1` for these. If an hf_transfer download is
+interrupted it truncates the `.incomplete` and restarts from zero rather than resuming.
+Finalization also sits at full size with no output for several minutes on a ~20 GB file
+— that is normal, not a hang.
 
 `fl2va` covers text-to-video and first/last-frame-to-video. For reference-to-video
 (`MiniMaxH3ReferenceToVideo`), fetch the matching `ref2va` diffusion model instead.
