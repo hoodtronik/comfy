@@ -88,7 +88,37 @@ Reusable harness: `<scratch>/sage_ab.sh` implements all of the above (interleave
 
 ---
 
-## 3. Outstanding work, in priority order
+## 2b. STATUS 2026-08-04 — the performance sweep is DONE
+
+Every lever is resolved. **Do not re-run these.** Full evidence in `MINIMAX_H3_NOTES.md`.
+
+| lever | verdict |
+|---|---|
+| SageAttention | ✅ **-27.9% s/it**, enabled in `start-headless.js` |
+| EasyCache thr 0.2 | ✅ **-45.8%** sampling, 9/20 skips, max run 2 |
+| fp8 DiT | ❌ 48% slower than int8 |
+| INT4 DiT | ❌ visibly degraded |
+| nvfp4 TE | ❌ emulated on sm_89 |
+| `--fast` (all) | ❌ no-op |
+| VRAM flags | ❌ no effect |
+| TorchCompile | ⛔ architecturally incompatible with int8_convrot |
+
+Keep `fl2va_pruned_int8_convrot` + `qwen3vl_32b_int8_convrot` + Sage. Stacked, 480p/5 s
+went **134 s → 61 s**; native 1344x768/10 s is **15 m 18 s**.
+
+**What is actually left** is creative/workflow work, not optimization:
+
+1. **ref2va lane untested.** `workflows/api/minimax_h3_ref2va.api.json` is written and
+   points at the cyborg turnarounds in `app/input/`, but has never been executed. Storyboard
+   references are first-class (`<Picture N>` = composition anchor; character sheets go inside
+   `<Subject N>` instead).
+2. **Draft-then-upscale vs native.** The 4090 box measured draft+upscale (~1 min ->
+   1728x960) beating native 720p (3.2 min -> 1280x720) — better resolution, a third of the
+   time. Untested here and it changes the production workflow, not just settings.
+3. **EasyCache quality at thr 0.2 for final renders** — measured mild softening vs no-cache.
+   Fine for drafts; decide per-shot whether finals take the hit.
+
+## 3. Outstanding work (optimization — ALL RESOLVED, kept for the record)
 
 ### 3.1 Finish the SageAttention A/B (highest value — blocks a briefing to the user's other machine)
 
