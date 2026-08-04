@@ -299,6 +299,38 @@ C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Buil
 An earlier scan reported only the 2019 toolset because it truncated a recursive search at
 the first two hits — `vswhere.exe -products *` enumerates installs reliably instead.
 
+### ...and with MSVC 14.44 it still fails, for a reason no environment fix touches
+
+Under VS2022 (`cl` 19.44.35222) the C2059 errors are gone and compilation proceeds. It then
+dies inside the model:
+
+```
+torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors:
+call_method __dlpack__(...): "Cannot access data pointer of Tensor (e.g. FakeTensor)...
+it is likely that we are erroneously tracing into a custom kernel. To fix this, please
+wrap the custom kernel into an opaque custom op."
+from user code:
+    _wrap_for_dlpack(x_2d),
+```
+
+**comfy-kitchen hands tensors to its custom int8 CUDA kernels over DLPack, which requires a
+real data pointer. `torch.compile` traces with FakeTensors, which have none, and
+comfy-kitchen does not register these as opaque custom ops — so dynamo traces *into* the
+kernel and fails.**
+
+**Conclusion: TorchCompile is incompatible with the `int8_convrot` path.** This is
+architectural, not environmental — no compiler, CUDA toolkit or triton version changes it.
+It would need comfy-kitchen to register its kernels as custom ops. It might work against a
+bf16 model, but that is the 61.7 GB variant and slower for unrelated reasons, so there is
+nothing to chase.
+
+Note the irony: the same comfy-kitchen kernels that cu130 unlocked (and that make
+`int8_convrot` the fastest DiT) are exactly what makes torch.compile impossible. The two
+optimizations are mutually exclusive here, and int8+Sage is measured far ahead.
+
+**Nothing was installed or changed while establishing this** — CUDA toolkits remain v11.8
+and v12.8, torch remains 2.9.1+cu130, and the `vcvars64` launches were throwaway scripts.
+
 ## 5. Measured render times
 
 Stock attention, warm server, uninterrupted sweep. All four verified as h264 + AAC
