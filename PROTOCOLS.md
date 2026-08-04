@@ -88,9 +88,39 @@ Reusable harness: `<scratch>/sage_ab.sh` implements all of the above (interleave
 
 ---
 
-## 2b. STATUS 2026-08-04 — the performance sweep is DONE
+## 2a. "RUN PROTOCOLS" (2026-08-04 revision) — execute RUN 4 autonomously
 
-Every lever is resolved. **Do not re-run these.** Full evidence in `MINIMAX_H3_NOTES.md`.
+A blind-spot audit (`BLINDSPOT_AUDIT.md`) demoted several findings: some were measured in
+the contaminated era, some were imported from the 4090 box without local verification, and
+audio was never examined at all. **The next "run protocols" means:**
+
+1. Confirm the GPU is idle (the harness self-checks and aborts above 10% util).
+2. `bash bench/protocol_run4.sh` — 22 trials, ~4-5 h, fully autonomous. Priorities inside:
+   P1 clean native stock-vs-sage pair (the single most valuable missing number), P2 TE
+   int8-vs-nvfp4 clean retest, P3 VRAM flags clean retest incl. the never-run
+   `--disable-async-offload`, P4 clean 480p/10s + EC skip pattern at 243f, P5 EC at native
+   res, P6 seed robustness + the tail rule on THIS box, P7 `--enable-triton-backend`,
+   P8 threshold saturation ceiling.
+3. `bash bench/audio_compare.sh` across nocache / EC0.2 / thr0.6 outputs — audio has never
+   been checked on any variant; triage for human ears.
+4. Parse skip sequences with `bench/skipmap.sh` ONLY (cross-validates against EasyCache's
+   own summary; refuses on mismatch).
+5. Optional if time remains: SeedVR2 draft-upscale attempt (4090's draft+upscale claim is
+   their stack; SeedVR2 is installed here — weights may need downloading, log if so).
+6. Update `BLINDSPOT_AUDIT.md` tiers, `MINIMAX_H3_NOTES.md`, README, and the memory ledger
+   with results; commit and push each phase as it lands.
+
+Note the scratchpad path baked into `protocol_run4.sh` belongs to the old session — a new
+session must pass `SCRATCH=<its own scratchpad>` or edit the default.
+
+## 2b. STATUS — sweep results (post-audit confidence levels)
+
+Tier-1 (clean, local, trust): Sage −27.9% @480p · EasyCache 0.2 −45.8% · fp8 DiT 48%
+slower · INT4 degraded · --fast no-op · run-of-4 smears · TorchCompile incompatible.
+Tier-2 (contaminated, RETEST in run4): TE speed claim · VRAM flags · all 10s/native stock
+baselines. Tier-3 (4090-derived, verify locally): end_percent rule · draft+upscale ·
+threshold portability. Tier-4 (never examined): audio · seed robustness · triton backend.
+Full detail in `BLINDSPOT_AUDIT.md`. **Do not re-run Tier-1.** Evidence in `MINIMAX_H3_NOTES.md`.
 
 | lever | verdict |
 |---|---|

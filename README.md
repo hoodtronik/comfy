@@ -178,17 +178,15 @@ node comfy-api.js run workflows/api/minimax_h3_t2v.api.json --out ./results
 ### Which quantization on this machine
 
 This box is an **RTX 6000 Ada (compute 8.9)**. That matters: NVFP4 is a Blackwell
-format, and Ada has no native FP4, so the NVFP4 weights run through emulated
-dequantization. Measured on an identical prompt/seed at 608x352, 56 frames, 20 steps:
+format, and Ada has no native FP4 (`supports_nvfp4_compute: False` in code), so the
+NVFP4 weights run through **emulated** dequantization while int8_convrot hits native
+kernels. The workflow therefore ships with the **int8_convrot** encoder. On a Blackwell
+card the NVFP4 file would be the better pick — this is a per-GPU choice, not a global one.
 
-| text encoder | size | time |
-|---|---|---|
-| `qwen3vl_32b_minimax_h3_nvfp4_awq` | 14.6 GB | 78.9 s |
-| `qwen3vl_32b_minimax_h3_int8_convrot` | 25.3 GB | **73.7 s** |
-
-int8 is faster *despite* being 11 GB larger, and output quality was comparable. The
-workflow therefore ships with the **int8_convrot** encoder. On a Blackwell card the
-NVFP4 file would be the better pick — this is a per-GPU choice, not a global one.
+An early same-prompt timing showed int8 ~7% faster (73.7 s vs 78.9 s at 608x352/56f)
+despite being 11 GB larger — but those were single non-interleaved runs taken while the
+machine was in desktop use, so treat the *mechanism* (emulation), not that number, as the
+reason for the choice. A clean re-measurement is queued (BLINDSPOT_AUDIT.md, run 4 P2).
 
 Note the text encoder runs once per prompt while the diffusion model runs every step,
 so the encoder choice barely moves throughput. Sampling cost (~3.1 s/it here) is driven
@@ -304,19 +302,15 @@ Sage applies to every model and perturbs attention numerics slightly, so the sam
 gives a near-identical but not bit-identical take. It is enabled on the headless path
 only; `start.js` keeps stock attention for interactive work.
 
-### VRAM strategy makes no difference on a 48 GB card
+### VRAM strategy: probably irrelevant on a 48 GB card — retest queued
 
-Measured against the same 864x480/124f probe:
-
-| flags | s/it |
-|---|---|
-| default | 5.75 |
-| `--highvram` | 5.80 |
-| `--disable-dynamic-vram` | 5.85 |
-
-None of them help. The card peaks around 40 GB of 48 GB with GPU utilization at 100%
-and `sw_power_cap` active, i.e. it is compute/power-bound, not memory-bound. Extra VRAM
-buys **capability** (no RAM-streaming tax, no OOM at native resolution), not throughput.
+An early A/B showed `--highvram` (5.80 s/it) and `--disable-dynamic-vram` (5.85) at or
+slightly worse than default (5.75), and the card is visibly compute/power-bound (peaks
+~40 GB of 48 GB at 100% util with `sw_power_cap` active — that part is solid). But those
+trials were sequential, not interleaved, and ran while the machine was in desktop use, so
+the ≤1.7% deltas are inside that era's noise. `--disable-async-offload` errored and never
+ran at all. A clean interleaved retest is queued (BLINDSPOT_AUDIT.md, run 4 P3); until
+then read this as "no evidence any VRAM flag helps," not as a measured null.
 
 Caveat: re-rendering an approved 480p seed at 1344x768 does **not** give the same shot
 larger. Resolution changes the latent shape, which reseeds the sampling trajectory, so
