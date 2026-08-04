@@ -264,33 +264,40 @@ frames.**
 All inside noise. The `fp8_matrix_mult` null is consistent with the fp8 DiT loss (§4b) —
 the fp8 weight path is simply not where sm_89 wins are.
 
-## 4g. TorchCompile is blocked — CUDA toolkit mismatch caused by the cu130 upgrade
+## 4g. TorchCompile needs MSVC 14.3x+ on PATH — it is a compiler-version issue
 
-`TorchCompileModel` (inductor) **does not work here**, and the reason is a side effect of
-our own cu130 move.
-
-Two failures, in order:
+`TorchCompileModel` (inductor) fails out of the box here. Two distinct causes, and the
+second one I initially misdiagnosed:
 
 1. `RuntimeError: Compiler: cl is not found.` — inductor emits C++ and needs MSVC on
-   Windows. VS2019 BuildTools **are** installed (`...\2019\BuildTools\VC\Tools\MSVC\
-   14.29.30133\`) but not on PATH. Running ComfyUI under `vcvars64.bat` fixes this.
-2. With MSVC available it gets further, then fails compiling triton's launcher:
-   `InductorError: CalledProcessError ... cl.exe ... __triton_launcher.c ... exit status 2`.
-   The command line shows why:
-   `/IC:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8\include`
+   Windows. Visual Studio is installed but not on PATH. Launch ComfyUI under
+   `vcvars64.bat`.
+2. With MSVC 14.29 (VS **2019**) available it gets further, then fails compiling triton's
+   generated launcher:
+   ```
+   __triton_launcher.c(123): error C2059: syntax error: '}'
+   __triton_launcher.c(131): error C2059: syntax error: '}'
+   ```
 
-**Triton builds its launcher against `CUDA_PATH`, which is v12.8, while torch is cu130.**
-Installed toolkits are v11.8 and v12.8; `torch.version.cuda` reports 13.0.
+**That is MSVC being too old for the C11 triton emits, not a CUDA problem.** The CUDA
+headers resolved fine — there is no "cannot open include file" anywhere in the log.
 
-**The trade-off, stated plainly:** before the cu130 upgrade, torch was cu128 and matched the
-installed v12.8 toolkit, so torch.compile plausibly worked. The upgrade bought
-SageAttention (-27.9%, measured) and cost torch.compile (untested magnitude). Given Sage is
-a confirmed ~28% and torch.compile is typically 10-30% and stacks poorly with an already
-custom-kernel-heavy path, this looks like the right trade — but it *is* a trade, not a
-free win.
+⚠️ **Correction.** This was first recorded here as a CUDA toolkit mismatch (`CUDA_PATH` =
+v12.8 vs torch cu130), inferred from the include paths in the failing command line without
+reading `cl.exe`'s actual output. That was wrong, and it would have cost a ~3 GB toolkit
+install that fixed nothing. The claim that the cu130 upgrade "broke torch.compile" was also
+wrong — cu130 is unrelated to a C syntax error. **Read the compiler's own error text, not
+the flags it was invoked with.**
 
-**To unblock:** install CUDA Toolkit 13.0 and point `CUDA_PATH` at it, then launch under
-`vcvars64.bat`. Both are system-level changes; neither was made here.
+**The fix costs nothing:** MSVC 14.44 (VS2022) is already installed on this machine, in
+both `2022\BuildTools` and `2022\Community`. Use VS2022's `vcvars64.bat`:
+
+```
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat
+```
+
+An earlier scan reported only the 2019 toolset because it truncated a recursive search at
+the first two hits — `vswhere.exe -products *` enumerates installs reliably instead.
 
 ## 5. Measured render times
 
